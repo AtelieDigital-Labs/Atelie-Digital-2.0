@@ -4,6 +4,7 @@ on:
   workflow_call:
     inputs:
       python-version:
+        description: Python version to use
         type: string
         default: "3.13"
 
@@ -25,13 +26,11 @@ jobs:
           python-version: ${{ inputs.python-version }}
 
       - name: Setup Uv
-        uses: astral-sh/setup-uv@v8
-
-      - name: Cache uv
-        uses: actions/cache@v4
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles('uv.lock') }}
+          cache-dependency-glob: | 
+            **/pyproject.toml
+            **/uv.lock
 
       - name: Install dependencies
         run: uv sync --frozen --dev
