@@ -39,10 +39,26 @@ services:
       - redis_data:/data
     networks:
       - atelie-network
+    
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # Console Web
+    volumes:
+      - minio_data:/data
+    networks:
+      - atelie-network
 
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
 
 networks:
   atelie-network:
