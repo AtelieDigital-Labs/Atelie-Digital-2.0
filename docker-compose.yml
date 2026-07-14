@@ -88,6 +88,39 @@ services:
     networks:
       - atelie-network
 
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - atelie-network
+
+  cron:
+    build:
+      context: .
+      dockerfile: ./infra/postgres/cron/Dockerfile
+
+    container_name: postgres-cron
+    restart: always
+
+    environment:
+      DATABASE_DB: ${DATABASE_DB}
+      DATABASE_USER: ${DATABASE_USER}
+
+    volumes:
+      - ./infra/postgres/backups:/backups
+      - postgres_data:/var/lib/postgresql/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    depends_on:
+      - postgres
+
+    networks:
+      - atelie-network
+
 volumes:
   postgres_data:
   redis_data:
