@@ -24,7 +24,20 @@ services:
       - "5437:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql
+      - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./infra/postgres/01-init-extensions.sql:/docker-entrypoint-initdb.d/01-init-extensions.sql
+      - ./infra/postgres/02-init-schemas.sql:/docker-entrypoint-initdb.d/02-init-schemas.sql
+
+       # Necessários para o hostmetrics
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+      - /:/hostfs:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
     networks:
       - atelie-network
 
@@ -39,10 +52,80 @@ services:
       - redis_data:/data
     networks:
       - atelie-network
+    
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # Console Web
+    volumes:
+      - minio_data:/data
+    networks:
+      - atelie-network
+
+  lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: lgtm
+    environment:
+      # Ativa os logs do OpenTelemetry Collector para diagnosticar problemas de config
+      - ENABLE_LOGS_OTELCOL=true
+    ports:
+      - "3000:3000"  # Interface do Grafana
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+    volumes:
+      # Injeta sua configuração customizada do OTel Collector no caminho correto lido pela imagem
+      - ./infra/otel/collector-config.yaml:/otel-lgtm/otelcol-config.yaml
+      # Compartilha o volume do Postgres (somente leitura) para ler os logs jsonlog nativos
+      - postgres_data:/var/lib/postgresql/data:ro
+      # Persiste os dados do próprio LGTM (Grafana/Loki/Prometheus/Tempo) entre restarts
+      - lgtm_data:/data
+    networks:
+      - atelie-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - atelie-network
+
+  cron:
+    build:
+      context: .
+      dockerfile: ./infra/postgres/cron/Dockerfile
+
+    container_name: postgres-cron
+    restart: always
+
+    environment:
+      DATABASE_DB: ${DATABASE_DB}
+      DATABASE_USER: ${DATABASE_USER}
+
+    volumes:
+      - ./infra/postgres/backups:/backups
+      - postgres_data:/var/lib/postgresql/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    depends_on:
+      - postgres
+
+    networks:
+      - atelie-network
 
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
+  lgtm_data:
 
 networks:
   atelie-network:

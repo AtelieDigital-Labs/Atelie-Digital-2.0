@@ -1,0 +1,5 @@
+# Backup todo início de hora
+0 * * * * /scripts/postgres_backup.sh >> /proc/1/fd/1 2>&1
+
+# Limpa logs às 03:00
+0 3 * * * /scripts/cleanup_postgres_logs.sh >> /proc/1/fd/1 2>&1

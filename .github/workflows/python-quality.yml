@@ -1,0 +1,44 @@
+name: Python Quality
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version to use
+        type: string
+        default: "3.13"
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Setup Uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          cache-dependency-glob: | 
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen --dev
+
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Pytest
+        run: uv run pytest -vv
