@@ -72,7 +72,9 @@ services:
     image: grafana/otel-lgtm:latest
     container_name: lgtm
     environment:
-      # Ativa os logs do OpenTelemetry Collector para diagnosticar problemas de config
+      - GF_SERVER_DOMAIN=ateliedigital.dev.br
+      - GF_SERVER_ROOT_URL=https://ateliedigital.dev.br/otel/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - ENABLE_LOGS_OTELCOL=true
     ports:
       - "3000:3000"  # Interface do Grafana
@@ -93,8 +95,10 @@ services:
     container_name: nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - atelie-network
 
