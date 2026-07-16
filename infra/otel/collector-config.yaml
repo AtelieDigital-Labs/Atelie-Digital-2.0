@@ -1,0 +1,74 @@
+receivers:
+  hostmetrics:
+      collection_interval: 10s
+      # root_path: /hostfs
+
+      scrapers:
+        cpu:
+        memory:
+        disk:
+        filesystem:
+        network:
+        load:
+        paging:
+        process:
+        processes:
+  # --- Coletor de Métricas Internas do Postgres ---
+  postgresql:
+    endpoint: "postgres:5432"
+    transport: tcp
+    username: "atelie"
+    password: "atelie" # Lembre-se de colocar a senha real aqui
+    databases: ["atelie"]
+    collection_interval: 10s
+    tls:
+      insecure: true
+
+  # --- Coletor de Logs nativos do Postgres (formato jsonlog) ---
+  filelog:
+    include: ["/var/lib/postgresql/data/log/*.json"]
+    include_file_name: false
+    start_at: end
+    operators:
+      # O jsonlog do Postgres já vem em JSON estruturado, um objeto por linha
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: "%Y-%m-%d %H:%M:%S.%L %Z"
+        severity:
+          # Mapeia o campo nativo error_severity (LOG, WARNING, ERROR, FATAL...)
+          # para a severidade padrão do OpenTelemetry
+          parse_from: attributes.error_severity
+
+processors:
+  batch:
+
+  # --- Injeta o Nome do App e Metadados ---
+  resource:
+    attributes:
+      - key: service.name
+        value: "postgres"
+        action: upsert
+      - key: environment
+        value: "development"
+        action: upsert
+
+exporters:
+  # Envia logs para o Loki via ingestão nativa OTLP (Loki 3.x)
+  otlphttp/loki:
+    endpoint: "http://localhost:3100/otlp"
+
+  # Envia métricas para o Prometheus embutido no LGTM via remote write
+  prometheusremotewrite:
+    endpoint: "http://localhost:9090/api/v1/write"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [postgresql, hostmetrics]
+      processors: [resource, batch]
+      exporters: [prometheusremotewrite]
+    logs:
+      receivers: [filelog]
+      processors: [resource, batch]
+      exporters: [otlphttp/loki]
